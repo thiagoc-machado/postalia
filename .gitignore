@@ -1,0 +1,46 @@
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
+
+# Django / backend
+backend/staticfiles/
+backend/media/generated/
+backend/media/exports/
+backend/media/tmp/
+backend/logs/
+
+# Frontend / Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.vitest/
+frontend/coverage/
+frontend/*.tsbuildinfo
+
+# Local tooling
+.idea/
+.vscode/
+.env.example
