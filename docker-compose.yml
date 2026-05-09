@@ -1,0 +1,234 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-postalia}
+      POSTGRES_USER: ${POSTGRES_USER:-postalia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postalia}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postalia} -d ${POSTGRES_DB:-postalia}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  demo-ai:
+    build:
+      context: ./tools/demo-ai
+    environment:
+      DEMO_AI_MODE: ${DEMO_AI_MODE:-fake}
+      DEMO_AI_TEXT_MODEL: ${DEMO_AI_TEXT_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      DEMO_AI_IMAGE_MODEL: ${DEMO_AI_IMAGE_MODEL:-stabilityai/sd-turbo}
+      DEMO_AI_DEVICE: ${DEMO_AI_DEVICE:-cpu}
+      HF_HOME: /data/.hf
+      TRANSFORMERS_CACHE: /data/.hf
+      DIFFUSERS_CACHE: /data/.hf
+    ports:
+      - "8001:8001"
+    volumes:
+      - demo_ai_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/docs')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-only-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      DJANGO_CORS_ALLOWED_ORIGINS: ${DJANGO_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost}
+      POSTGRES_DB: ${POSTGRES_DB:-postalia}
+      POSTGRES_USER: ${POSTGRES_USER:-postalia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postalia}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgres://${POSTGRES_USER:-postalia}:${POSTGRES_PASSWORD:-postalia}@postgres:5432/${POSTGRES_DB:-postalia}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      GOOGLE_ONLY: ${GOOGLE_ONLY:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      AI_PROVIDER_MODE: ${AI_PROVIDER_MODE:-fake}
+      ENABLE_FAKE_AI_IN_PRODUCTION: ${ENABLE_FAKE_AI_IN_PRODUCTION:-false}
+      AI_TEXT_PROVIDER: ${AI_TEXT_PROVIDER:-local}
+      AI_TEXT_API_KEY: ${AI_TEXT_API_KEY:-}
+      AI_TEXT_MODEL: ${AI_TEXT_MODEL:-}
+      AI_IMAGE_PROVIDER: ${AI_IMAGE_PROVIDER:-local}
+      AI_IMAGE_API_KEY: ${AI_IMAGE_API_KEY:-}
+      AI_IMAGE_MODEL: ${AI_IMAGE_MODEL:-}
+      DEMO_AI_BASE_URL: http://demo-ai:8001
+      DEMO_AI_MODE: ${DEMO_AI_MODE:-fake}
+      DEMO_AI_TEXT_MODEL: ${DEMO_AI_TEXT_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      DEMO_AI_IMAGE_MODEL: ${DEMO_AI_IMAGE_MODEL:-stabilityai/sd-turbo}
+      DEMO_AI_DEVICE: ${DEMO_AI_DEVICE:-cpu}
+      ENABLE_PAGE_ADS: ${ENABLE_PAGE_ADS:-false}
+      ENABLE_REWARDED_ADS: ${ENABLE_REWARDED_ADS:-false}
+      ADS_PROVIDER: ${ADS_PROVIDER:-mock}
+      GOOGLE_ADSENSE_CLIENT_ID: ${GOOGLE_ADSENSE_CLIENT_ID:-}
+      GOOGLE_ADSENSE_SLOT_HEADER: ${GOOGLE_ADSENSE_SLOT_HEADER:-}
+      GOOGLE_ADSENSE_SLOT_SIDEBAR: ${GOOGLE_ADSENSE_SLOT_SIDEBAR:-}
+      GOOGLE_ADSENSE_SLOT_DASHBOARD: ${GOOGLE_ADSENSE_SLOT_DASHBOARD:-}
+      GOOGLE_ADSENSE_SLOT_FOOTER: ${GOOGLE_ADSENSE_SLOT_FOOTER:-}
+      REWARDED_AD_PROVIDER: ${REWARDED_AD_PROVIDER:-mock}
+      REWARDED_AD_POINTS: ${REWARDED_AD_POINTS:-5}
+      REWARDED_AD_DAILY_LIMIT: ${REWARDED_AD_DAILY_LIMIT:-2}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8000}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-en}
+      CREEM_ENABLED: ${CREEM_ENABLED:-false}
+      CREEM_ENVIRONMENT: ${CREEM_ENVIRONMENT:-test}
+      CREEM_API_KEY: ${CREEM_API_KEY:-}
+      CREEM_WEBHOOK_SECRET: ${CREEM_WEBHOOK_SECRET:-}
+      CREEM_API_BASE_URL_TEST: ${CREEM_API_BASE_URL_TEST:-https://test-api.creem.io/v1}
+      CREEM_API_BASE_URL_PRODUCTION: ${CREEM_API_BASE_URL_PRODUCTION:-https://api.creem.io/v1}
+      CREEM_SUCCESS_URL: ${CREEM_SUCCESS_URL:-http://localhost:5173/billing/success}
+      CREEM_CANCEL_URL: ${CREEM_CANCEL_URL:-http://localhost:5173/billing/cancel}
+      CREEM_PORTAL_RETURN_URL: ${CREEM_PORTAL_RETURN_URL:-http://localhost:5173/subscription}
+      CREEM_STARTER_PRODUCT_ID: ${CREEM_STARTER_PRODUCT_ID:-}
+      CREEM_PRO_PRODUCT_ID: ${CREEM_PRO_PRODUCT_ID:-}
+      CREEM_AGENCY_PRODUCT_ID: ${CREEM_AGENCY_PRODUCT_ID:-}
+      PAYMENT_WEBHOOK_ALLOWED_SKEW_SECONDS: ${PAYMENT_WEBHOOK_ALLOWED_SKEW_SECONDS:-300}
+      ENABLE_DEV_FAKE_AD_REWARDS: ${ENABLE_DEV_FAKE_AD_REWARDS:-true}
+      USE_S3_STORAGE: "false"
+      AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-postalia}
+      AWS_S3_ENDPOINT_URL: http://minio:9000
+      AWS_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
+      AWS_S3_REGION_NAME: us-east-1
+      INITIAL_STAFF_EMAIL: ${INITIAL_STAFF_EMAIL:-staff@postalia.local}
+      INITIAL_STAFF_PASSWORD: ${INITIAL_STAFF_PASSWORD:-changeme123}
+      INITIAL_STAFF_NAME: ${INITIAL_STAFF_NAME:-Postalia Staff}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      demo-ai:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  celery:
+    build:
+      context: ./backend
+    command: celery -A postalia worker -l info
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-only-secret}
+      POSTGRES_DB: ${POSTGRES_DB:-postalia}
+      POSTGRES_USER: ${POSTGRES_USER:-postalia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postalia}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgres://${POSTGRES_USER:-postalia}:${POSTGRES_PASSWORD:-postalia}@postgres:5432/${POSTGRES_DB:-postalia}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      GOOGLE_ONLY: ${GOOGLE_ONLY:-true}
+      AI_PROVIDER_MODE: ${AI_PROVIDER_MODE:-fake}
+      ENABLE_FAKE_AI_IN_PRODUCTION: ${ENABLE_FAKE_AI_IN_PRODUCTION:-false}
+      AI_TEXT_PROVIDER: ${AI_TEXT_PROVIDER:-local}
+      AI_IMAGE_PROVIDER: ${AI_IMAGE_PROVIDER:-local}
+      DEMO_AI_BASE_URL: http://demo-ai:8001
+      DEMO_AI_MODE: ${DEMO_AI_MODE:-fake}
+      DEMO_AI_TEXT_MODEL: ${DEMO_AI_TEXT_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      DEMO_AI_IMAGE_MODEL: ${DEMO_AI_IMAGE_MODEL:-stabilityai/sd-turbo}
+      DEMO_AI_DEVICE: ${DEMO_AI_DEVICE:-cpu}
+      ENABLE_PAGE_ADS: ${ENABLE_PAGE_ADS:-false}
+      ENABLE_REWARDED_ADS: ${ENABLE_REWARDED_ADS:-false}
+      ADS_PROVIDER: ${ADS_PROVIDER:-mock}
+      GOOGLE_ADSENSE_CLIENT_ID: ${GOOGLE_ADSENSE_CLIENT_ID:-}
+      GOOGLE_ADSENSE_SLOT_HEADER: ${GOOGLE_ADSENSE_SLOT_HEADER:-}
+      GOOGLE_ADSENSE_SLOT_SIDEBAR: ${GOOGLE_ADSENSE_SLOT_SIDEBAR:-}
+      GOOGLE_ADSENSE_SLOT_DASHBOARD: ${GOOGLE_ADSENSE_SLOT_DASHBOARD:-}
+      GOOGLE_ADSENSE_SLOT_FOOTER: ${GOOGLE_ADSENSE_SLOT_FOOTER:-}
+      REWARDED_AD_PROVIDER: ${REWARDED_AD_PROVIDER:-mock}
+      REWARDED_AD_POINTS: ${REWARDED_AD_POINTS:-5}
+      REWARDED_AD_DAILY_LIMIT: ${REWARDED_AD_DAILY_LIMIT:-2}
+      CREEM_ENABLED: ${CREEM_ENABLED:-false}
+      CREEM_ENVIRONMENT: ${CREEM_ENVIRONMENT:-test}
+      CREEM_API_KEY: ${CREEM_API_KEY:-}
+      CREEM_WEBHOOK_SECRET: ${CREEM_WEBHOOK_SECRET:-}
+      CREEM_API_BASE_URL_TEST: ${CREEM_API_BASE_URL_TEST:-https://test-api.creem.io/v1}
+      CREEM_API_BASE_URL_PRODUCTION: ${CREEM_API_BASE_URL_PRODUCTION:-https://api.creem.io/v1}
+      CREEM_SUCCESS_URL: ${CREEM_SUCCESS_URL:-http://localhost:5173/billing/success}
+      CREEM_CANCEL_URL: ${CREEM_CANCEL_URL:-http://localhost:5173/billing/cancel}
+      CREEM_PORTAL_RETURN_URL: ${CREEM_PORTAL_RETURN_URL:-http://localhost:5173/subscription}
+      CREEM_STARTER_PRODUCT_ID: ${CREEM_STARTER_PRODUCT_ID:-}
+      CREEM_PRO_PRODUCT_ID: ${CREEM_PRO_PRODUCT_ID:-}
+      CREEM_AGENCY_PRODUCT_ID: ${CREEM_AGENCY_PRODUCT_ID:-}
+      PAYMENT_WEBHOOK_ALLOWED_SKEW_SECONDS: ${PAYMENT_WEBHOOK_ALLOWED_SKEW_SECONDS:-300}
+      USE_S3_STORAGE: "false"
+      AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-postalia}
+      AWS_S3_ENDPOINT_URL: http://minio:9000
+      AWS_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+        VITE_APP_NAME: ${VITE_APP_NAME:-Postalia}
+        VITE_DEFAULT_LANGUAGE: ${VITE_DEFAULT_LANGUAGE:-en}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_ENABLE_PAGE_ADS: ${VITE_ENABLE_PAGE_ADS:-false}
+        VITE_ADS_PROVIDER: ${VITE_ADS_PROVIDER:-mock}
+        VITE_GOOGLE_ADSENSE_CLIENT_ID: ${VITE_GOOGLE_ADSENSE_CLIENT_ID:-}
+        VITE_GOOGLE_ADSENSE_SLOT_HEADER: ${VITE_GOOGLE_ADSENSE_SLOT_HEADER:-}
+        VITE_GOOGLE_ADSENSE_SLOT_SIDEBAR: ${VITE_GOOGLE_ADSENSE_SLOT_SIDEBAR:-}
+        VITE_GOOGLE_ADSENSE_SLOT_DASHBOARD: ${VITE_GOOGLE_ADSENSE_SLOT_DASHBOARD:-}
+        VITE_GOOGLE_ADSENSE_SLOT_FOOTER: ${VITE_GOOGLE_ADSENSE_SLOT_FOOTER:-}
+        VITE_CREEM_ENABLED: ${VITE_CREEM_ENABLED:-false}
+        VITE_ENABLE_REWARDED_ADS: ${VITE_ENABLE_REWARDED_ADS:-false}
+        VITE_REWARDED_AD_PROVIDER: ${VITE_REWARDED_AD_PROVIDER:-mock}
+        VITE_REWARDED_AD_POINTS: ${VITE_REWARDED_AD_POINTS:-5}
+        VITE_REWARDED_AD_DAILY_LIMIT: ${VITE_REWARDED_AD_DAILY_LIMIT:-2}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+  minio_data:
+  demo_ai_data:
